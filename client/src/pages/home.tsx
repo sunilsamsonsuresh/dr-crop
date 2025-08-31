@@ -212,9 +212,6 @@ export default function Home() {
               <p className="text-sm text-muted-foreground">
                 Advanced plant disease diagnostics powered by AI technology for modern agriculture professionals.
               </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                A product of SamStudios
-              </p>
             </div>
             <div>
               <h4 className="font-semibold text-foreground mb-3">Quick Links</h4>

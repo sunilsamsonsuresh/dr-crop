@@ -283,6 +283,9 @@ export default function Landing() {
           
           <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
             <p>&copy; 2024 Dr Crop. All rights reserved. Revolutionizing agriculture with AI technology.</p>
+            <p className="mt-2 text-xs text-muted-foreground/70">
+              A product by <span className="font-semibold text-primary">SamStudios</span>
+            </p>
           </div>
         </div>
       </footer>

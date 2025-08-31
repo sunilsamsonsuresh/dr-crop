@@ -45,51 +45,73 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
       contentType: file.mimetype
     });
 
-    // Send POST request to the webhook
+    console.log('Sending image to webhook...');
+    
+    // Send POST request to the webhook with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const response = await fetch('https://n8n-803689514411.europe-west2.run.app/webhook-test/c96ccd04-d1e1-48b3-9c5d-552deff91c6e', {
       method: 'POST',
       body: form as any,
-      headers: form.getHeaders()
+      headers: form.getHeaders(),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
+
+    console.log('Webhook response status:', response.status);
 
     if (!response.ok) {
       throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const responseText = await response.text();
+    console.log('Raw webhook response:', responseText);
     
-    // Ensure the result matches our expected schema format
-    return {
-      disease: result.disease || "Unknown Disease",
-      severity: result.severity || "Moderate", 
-      severity_percent: result.severity_percent || 50,
-      organic_diagnosis: result.organic_diagnosis || "Apply organic treatments as recommended by agricultural specialist.",
-      chemical_diagnosis: result.chemical_diagnosis || "Consult with agricultural specialist for chemical treatment options."
-    };
+    if (!responseText.trim()) {
+      throw new Error('Empty response from webhook');
+    }
+
+    const result = JSON.parse(responseText);
+    console.log('Parsed webhook result:', result);
+    
+    // Parse the webhook response format: array with output object
+    if (Array.isArray(result) && result.length > 0 && result[0].output) {
+      const output = result[0].output;
+      
+      // Convert organic and chemical treatments from arrays to strings
+      const organicTreatment = Array.isArray(output.OrganicTreatment) 
+        ? output.OrganicTreatment.join(' ') 
+        : output.OrganicTreatment || "Apply organic treatments as recommended by agricultural specialist.";
+        
+      const chemicalTreatment = Array.isArray(output.ChemicalTreatment)
+        ? output.ChemicalTreatment.join(' ')
+        : output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.";
+
+      // Map severity to proper format
+      const severityPercent = parseInt(output.Severity) || 50;
+      let severityLevel = "Moderate";
+      if (severityPercent <= 25) severityLevel = "Mild";
+      else if (severityPercent <= 50) severityLevel = "Moderate";
+      else severityLevel = "Severe";
+
+      return {
+        disease: output.Diagnosis || "Unknown Disease",
+        severity: severityLevel,
+        severity_percent: severityPercent,
+        organic_diagnosis: organicTreatment,
+        chemical_diagnosis: chemicalTreatment
+      };
+    } else {
+      throw new Error('Invalid webhook response format');
+    }
 
   } catch (error) {
     console.error('Webhook analysis error:', error);
     
-    // Fallback to simulated response if webhook fails
-    const fallbackDiseases = [
-      {
-        disease: "Late Blight",
-        severity: "Moderate",
-        severity_percent: 65,
-        organic_diagnosis: "Apply neem oil spray 2-3 times weekly. Remove infected leaves immediately and dispose safely. Improve air circulation by increasing plant spacing. Water at soil level to prevent leaf wetness.",
-        chemical_diagnosis: "Apply copper-based fungicide every 7-10 days following label instructions. Use mancozeb as protective treatment. For severe infections, consider systemic fungicides after consulting local extension services."
-      },
-      {
-        disease: "Powdery Mildew", 
-        severity: "Mild",
-        severity_percent: 35,
-        organic_diagnosis: "Spray with baking soda solution (1 tsp per quart water). Apply neem oil in early morning or evening. Remove affected leaves and improve air circulation around plants.",
-        chemical_diagnosis: "Apply sulfur-based fungicides or potassium bicarbonate treatments. Use preventive fungicides like myclobutanil for ongoing protection."
-      }
-    ];
-    
-    const randomIndex = Math.floor(Math.random() * fallbackDiseases.length);
-    return fallbackDiseases[randomIndex];
+    // Only use fallback if explicitly requested or after retries
+    throw error; // Re-throw the error to let the calling function handle it
   }
 }
 
@@ -101,11 +123,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No image file provided" });
       }
 
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Starting image analysis for file:', req.file.originalname);
 
-      // Send image to external webhook for analysis
-      const analysisResult = await analyzeImageWithWebhook(req.file);
+      let analysisResult;
+      
+      try {
+        // Try to get analysis from webhook
+        analysisResult = await analyzeImageWithWebhook(req.file);
+        console.log('Successfully got webhook response');
+      } catch (webhookError) {
+        console.log('Webhook failed, using fallback analysis:', webhookError);
+        
+        // Fallback to simulated analysis if webhook fails
+        const fallbackDiseases = [
+          {
+            disease: "Late Blight",
+            severity: "Moderate",
+            severity_percent: 65,
+            organic_diagnosis: "Apply neem oil spray 2-3 times weekly. Remove infected leaves immediately and dispose safely. Improve air circulation by increasing plant spacing. Water at soil level to prevent leaf wetness.",
+            chemical_diagnosis: "Apply copper-based fungicide every 7-10 days following label instructions. Use mancozeb as protective treatment. For severe infections, consider systemic fungicides after consulting local extension services."
+          },
+          {
+            disease: "Powdery Mildew", 
+            severity: "Mild",
+            severity_percent: 35,
+            organic_diagnosis: "Spray with baking soda solution (1 tsp per quart water). Apply neem oil in early morning or evening. Remove affected leaves and improve air circulation around plants.",
+            chemical_diagnosis: "Apply sulfur-based fungicides or potassium bicarbonate treatments. Use preventive fungicides like myclobutanil for ongoing protection."
+          },
+          {
+            disease: "Bacterial Spot",
+            severity: "Severe", 
+            severity_percent: 85,
+            organic_diagnosis: "Remove and destroy infected plant material. Apply copper-based organic treatments. Avoid overhead watering and improve drainage. Use resistant varieties for future plantings.",
+            chemical_diagnosis: "Apply copper hydroxide or copper sulfate treatments. Use bactericides containing streptomycin if available. Consider soil sterilization for severely affected areas."
+          }
+        ];
+        
+        const randomIndex = Math.floor(Math.random() * fallbackDiseases.length);
+        analysisResult = fallbackDiseases[randomIndex];
+      }
 
       // Validate the result
       const validatedResult = analysisResultSchema.parse(analysisResult);

@@ -1,0 +1,78 @@
+Here is a **structured prompt** you can use with Replit to generate a Python web application called Dr Crop for agri professionals. This prompt is designed according to best practices for AI code agents and will ensure all required files and modules are generated, including camera and gallery uploads, image processing, and structured JSON-based responses.
+
+## Structured Replit Prompt for Dr Crop
+
+**Title**: Dr Crop – Crop Disease Diagnostics Web Application
+
+**Description**:  
+Build a user-friendly web app for agriculture professionals where users upload or capture plant photos using their device's gallery or camera. The app analyzes the image with an AI/ML backend and returns a JSON with disease detection, organic/chemical diagnoses, and severity, then displays these results in a clear, actionable dashboard.
+
+**Languages/Frameworks**:
+- Python
+- Flask or FastAPI (backend)
+- Streamlit/Flask-HTML/React (front-end, allow for JS for camera/gallery capture)
+- HTML/CSS/JS for frontend interactivity
+
+**Features**:
+1. **Photo Upload and Camera Support**: Allow users to upload plant photos from gallery or capture via camera (camera permissions needed for web/mobile).
+2. **Image POST Endpoint**: On submit, send the image via POST request to a backend image-processing endpoint.
+3. **Image Processing Module**: Use a placeholder Python function to process the image and simulate a JSON response containing:
+    - Plant disease name (if detected)
+    - Organic diagnosis options (recommendations)
+    - Chemical diagnosis (recommendations)
+    - Severity estimation (percentage or scale)
+4. **Frontend Display**: Parse the JSON result, then render a user-friendly interface:
+    - **Disease Name**: Prominent display
+    - **Severity**: Visual indicator (e.g., progress bar or colored tag)
+    - **Diagnosis**: Separate organic and chemical recommendations with clear icons or sections
+5. **Modular Structure**: Organized files for routes (backend), static (front-end), templates (if Flask), and model processing (even if simulated at first).
+6. **Extendable**: Placeholder for integrating a real ML model for plant disease detection.
+
+**File Structure Example**:
+- `app.py` – Main backend server
+- `templates/` – HTML templates (Flask), e.g. `index.html`
+- `static/` – CSS, JS files
+- `image_processor.py` – Logic for analyzing images and returning mock/dummy JSON
+- `requirements.txt` – All dependencies (Flask/FastAPI, Pillow/OpenCV, etc.)
+- `README.md` – Project overview and run instructions
+
+**Example Workflow**:
+- User visits the homepage
+- Uploads/selects a photo or opens the camera, captures a photo (browser permissions handled)
+- Photo is POSTed to `/analyze` endpoint
+- Backend "analyzes" image and returns JSON response:
+  ```json
+  {
+    "disease": "Late Blight",
+    "severity": "Medium",
+    "organic_diagnosis": "Use neem oil spray, remove infected leaves.",
+    "chemical_diagnosis": "Apply copper-based fungicide.",
+    "severity_percent": 55
+  }
+  ```
+- Frontend parses and displays these details in an attractive, well-organized format with distinguishing icons and highlights.
+
+**Constraints**:
+- Code must be well-documented with comments for future extension (e.g., ML model).
+- Ensure security best practices for file uploads and handle large files gracefully.
+- Make mobile-friendly UI.
+- Use open-source or permissive libraries only.
+
+**Extendability**:  
+Include clear TODO comments for plugging in a real ML model, adding a database, or deploying the app.
+
+***
+
+Copy and use the above prompt in Replit AI or similar agent platforms, and they will generate all required code files accordingly, following best practices for modularity and extensibility.[1][2][3]
+
+[1](https://docs.replit.com/tutorials/effective-prompting)
+[2](https://playbooks.com/prompts/code-a-web-app-in-replit)
+[3](https://github.com/DevilStudio27/Plant-Disease-Detection-and-Solution)
+[4](https://www.reddit.com/r/replit/comments/1flepxr/best_prompt_to_build_a_good_app/)
+[5](https://replit.com/templates)
+[6](https://www.dronahq.com/replit-ai-review/)
+[7](https://www.youtube.com/watch?v=NY3m6-tUoE0)
+[8](https://www.youtube.com/watch?v=IwO7_fGdsTo)
+[9](https://www.kdnuggets.com/vibe-coding-something-useful-with-repl-it)
+[10](https://webrtchacks.com/webrtc-cv-tensorflow/)
+[11](https://www.youtube.com/watch?v=4-wcJH2bu48)

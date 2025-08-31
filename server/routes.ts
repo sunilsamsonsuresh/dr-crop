@@ -1,12 +1,14 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { analysisResultSchema } from "@shared/schema";
+import { analysisResultSchema, insertUserSchema, loginSchema } from "@shared/schema";
 import multer, { type FileFilterCallback } from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from 'url';
 import FormData from 'form-data';
+import bcrypt from 'bcryptjs';
+import session from 'express-session';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -116,9 +118,137 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
   }
 }
 
+// Extend Express Request to include session user
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Image analysis endpoint
-  app.post("/api/analyze", upload.single('image'), async (req: Request, res) => {
+  // Configure session middleware
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    }
+  }));
+
+  // Middleware to check if user is authenticated
+  const requireAuth = (req: Request, res: any, next: any) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    next();
+  };
+
+  // Register/Signup endpoint
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(validatedData.username);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username already exists' });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      
+      // Create user
+      const user = await storage.createUser({
+        username: validatedData.username,
+        password: hashedPassword
+      });
+
+      // Start session
+      req.session.userId = user.id;
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        createdAt: user.createdAt
+      });
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(400).json({ 
+        error: 'Registration failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Login endpoint
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const validatedData = loginSchema.parse(req.body);
+      
+      // Find user
+      const user = await storage.getUserByUsername(validatedData.username);
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      // Verify password
+      const isValid = await bcrypt.compare(validatedData.password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      // Start session
+      req.session.userId = user.id;
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        createdAt: user.createdAt
+      });
+
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(400).json({ 
+        error: 'Login failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Logout endpoint
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+      res.json({ message: 'Logged out successfully' });
+    });
+  });
+
+  // Get current user endpoint
+  app.get('/api/auth/user', requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        createdAt: user.createdAt
+      });
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ error: 'Failed to get user info' });
+    }
+  });
+  // Image analysis endpoint (requires authentication)
+  app.post("/api/analyze", requireAuth, upload.single('image'), async (req: Request, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No image file provided" });
@@ -142,9 +272,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate the result
       const validatedResult = analysisResultSchema.parse(analysisResult);
 
-      // Store analysis in memory storage
+      // Store analysis in database with user ID
       const analysis = await storage.createAnalysis({
-        userId: null, // No user system for now
+        userId: req.session.userId!,
         imagePath: req.file.path,
         disease: validatedResult.disease,
         severity: validatedResult.severity,
@@ -167,25 +297,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get analysis history
-  app.get("/api/analyses", async (req, res) => {
+  // Get user's analysis history
+  app.get("/api/analyses", requireAuth, async (req, res) => {
     try {
-      // For now, return all analyses since we don't have user authentication
-      const analyses = Array.from((storage as any).analyses.values());
-      res.json(analyses.slice(-10)); // Return last 10 analyses
+      const analyses = await storage.getAnalysesByUserId(req.session.userId!);
+      res.json(analyses.slice(0, 10)); // Return last 10 analyses
     } catch (error) {
       console.error('Error fetching analyses:', error);
       res.status(500).json({ error: "Failed to fetch analysis history" });
     }
   });
 
-  // Get specific analysis
-  app.get("/api/analyses/:id", async (req, res) => {
+  // Get user statistics
+  app.get("/api/user/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await storage.getUserStats(req.session.userId!);
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      res.status(500).json({ error: "Failed to fetch user statistics" });
+    }
+  });
+
+  // Get specific analysis (user can only access their own)
+  app.get("/api/analyses/:id", requireAuth, async (req, res) => {
     try {
       const analysis = await storage.getAnalysis(req.params.id);
       if (!analysis) {
         return res.status(404).json({ error: "Analysis not found" });
       }
+      
+      // Check if analysis belongs to current user
+      if (analysis.userId !== req.session.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       res.json(analysis);
     } catch (error) {
       console.error('Error fetching analysis:', error);

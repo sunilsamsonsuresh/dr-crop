@@ -15,7 +15,9 @@ import {
   Share,
   Info
 } from "lucide-react";
-import { AnalysisResult } from "@shared/schema";
+import { AnalysisResult, UserStats } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ResultsDashboardProps {
   result: AnalysisResult;
@@ -23,6 +25,13 @@ interface ResultsDashboardProps {
 }
 
 export default function ResultsDashboard({ result, onNewScan }: ResultsDashboardProps) {
+  const { data: userStats, isLoading: statsLoading } = useQuery({
+    queryKey: ['/api/user/stats'],
+    queryFn: async (): Promise<UserStats> => {
+      const response = await apiRequest('GET', '/api/user/stats');
+      return response.json();
+    },
+  });
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'none':
@@ -274,25 +283,44 @@ export default function ResultsDashboard({ result, onNewScan }: ResultsDashboard
 
       {/* Quick Stats Summary */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Recent Activity</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary" data-testid="stat-scans-today">23</div>
-            <div className="text-sm text-muted-foreground">Scans Today</div>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Your Activity</h3>
+        {statsLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="text-center">
+                <div className="text-2xl font-bold bg-muted animate-pulse rounded h-8 w-8 mx-auto mb-2"></div>
+                <div className="bg-muted animate-pulse rounded h-4 w-20 mx-auto"></div>
+              </div>
+            ))}
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-success" data-testid="stat-healthy-plants">18</div>
-            <div className="text-sm text-muted-foreground">Healthy Plants</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-primary" data-testid="stat-scans-today">
+                {userStats?.scansToday || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Scans Today</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-success" data-testid="stat-healthy-plants">
+                {userStats?.healthyPlants || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Healthy Plants</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-warning" data-testid="stat-need-treatment">
+                {userStats?.needTreatment || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Need Treatment</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-destructive" data-testid="stat-critical-cases">
+                {userStats?.criticalCases || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Critical Cases</div>
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-warning" data-testid="stat-need-treatment">4</div>
-            <div className="text-sm text-muted-foreground">Need Treatment</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-destructive" data-testid="stat-critical-cases">1</div>
-            <div className="text-sm text-muted-foreground">Critical Cases</div>
-          </div>
-        </div>
+        )}
       </Card>
     </div>
   );

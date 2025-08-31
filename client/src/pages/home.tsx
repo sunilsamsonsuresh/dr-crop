@@ -3,7 +3,12 @@ import UploadSection from "@/components/upload-section";
 import ProcessingState from "@/components/processing-state";
 import ResultsDashboard from "@/components/results-dashboard";
 import { AnalysisResult } from "@shared/schema";
-import { Leaf, Settings, User } from "lucide-react";
+import { Leaf, Settings, User, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 type AppState = 'upload' | 'processing' | 'results';
 
@@ -11,6 +16,29 @@ export default function Home() {
   const [currentState, setCurrentState] = useState<AppState>('upload');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/auth/logout');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Logged Out",
+        description: "You have been logged out successfully",
+      });
+      window.location.reload();
+    },
+    onError: () => {
+      toast({
+        title: "Logout Failed",
+        description: "There was an error logging out",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleImageSelect = (file: File) => {
     setSelectedImage(file);
@@ -47,12 +75,24 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                Welcome, {user?.username}
+              </span>
               <button className="p-2 rounded-md hover:bg-muted transition-colors" data-testid="button-profile">
                 <User className="text-muted-foreground" size={20} />
               </button>
               <button className="p-2 rounded-md hover:bg-muted transition-colors" data-testid="button-settings">
                 <Settings className="text-muted-foreground" size={20} />
               </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+                data-testid="button-logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>

@@ -83,14 +83,25 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
     if (result && result.output) {
       const output = result.output;
       
-      // Convert organic and chemical treatments from arrays to strings
+      // Clean and format treatment recommendations
+      const cleanTreatmentText = (text: string) => {
+        return text
+          .replace(/\s*\(e\.g\.,?\s*/g, ' (for example: ') // Fix e.g. formatting
+          .replace(/\s*\(e\.g\.\s*/g, ' (for example ') // Handle cases without comma
+          .replace(/\)\s*with\s+/g, ') - ') // Clean up parentheses followed by "with"
+          .replace(/\.\s*$/, '') // Remove trailing periods from list items
+          .replace(/,\s*$/, '') // Remove trailing commas
+          .trim();
+      };
+
+      // Convert organic and chemical treatments from arrays to formatted strings
       const organicTreatment = Array.isArray(output.OrganicTreatment) 
-        ? output.OrganicTreatment.join(' ') 
-        : output.OrganicTreatment || "Apply organic treatments as recommended by agricultural specialist.";
+        ? output.OrganicTreatment.map(cleanTreatmentText).join('\n• ') 
+        : cleanTreatmentText(output.OrganicTreatment || "Apply organic treatments as recommended by agricultural specialist.");
         
       const chemicalTreatment = Array.isArray(output.ChemicalTreatment)
-        ? output.ChemicalTreatment.join(' ')
-        : output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.";
+        ? output.ChemicalTreatment.map(cleanTreatmentText).join('\n• ')
+        : cleanTreatmentText(output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.");
 
       // Map severity to proper format
       const severityPercent = parseInt(output.Severity) || 50;

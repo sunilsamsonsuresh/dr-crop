@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(120, 20%, 98%);
+  --foreground: hsl(120, 10%, 15%);
+  --card: hsl(120, 20%, 96%);
+  --card-foreground: hsl(120, 10%, 15%);
+  --popover: hsl(120, 20%, 98%);
+  --popover-foreground: hsl(120, 10%, 15%);
+  --primary: hsl(122, 39%, 25%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(16, 25%, 20%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --muted: hsl(120, 10%, 85%);
+  --muted-foreground: hsl(120, 10%, 45%);
+  --accent: hsl(33, 100%, 50%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 63%, 50%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --border: hsl(120, 20%, 82%);
+  --input: hsl(120, 20%, 96%);
+  --ring: hsl(122, 39%, 25%);
+  --chart-1: hsl(122, 39%, 25%);
+  --chart-2: hsl(120, 60%, 35%);
+  --chart-3: hsl(33, 100%, 50%);
+  --chart-4: hsl(0, 63%, 50%);
+  --chart-5: hsl(210, 100%, 50%);
+  --sidebar: hsl(120, 20%, 96%);
+  --sidebar-foreground: hsl(120, 10%, 15%);
+  --sidebar-primary: hsl(122, 39%, 25%);
+  --sidebar-primary-foreground: hsl(0, 0%, 98%);
+  --sidebar-accent: hsl(120, 10%, 85%);
+  --sidebar-accent-foreground: hsl(122, 39%, 25%);
+  --sidebar-border: hsl(120, 20%, 82%);
+  --sidebar-ring: hsl(122, 39%, 25%);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 8px;
+  --success: hsl(120, 60%, 35%);
+  --warning: hsl(45, 100%, 50%);
+  --info: hsl(210, 100%, 50%);
+  --shadow-2xs: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00), 0px 1px 2px -1px hsl(122, 39%, 25% / 0.00);
+  --shadow: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00), 0px 1px 2px -1px hsl(122, 39%, 25% / 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00), 0px 2px 4px -1px hsl(122, 39%, 25% / 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00), 0px 4px 6px -1px hsl(122, 39%, 25% / 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00), 0px 8px 10px -1px hsl(122, 39%, 25% / 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(122, 39%, 25% / 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: hsl(120, 15%, 8%);
+    --foreground: hsl(120, 10%, 92%);
+    --card: hsl(120, 15%, 12%);
+    --card-foreground: hsl(120, 10%, 92%);
+    --popover: hsl(120, 15%, 8%);
+    --popover-foreground: hsl(120, 10%, 92%);
+    --primary: hsl(122, 39%, 35%);
+    --primary-foreground: hsl(0, 0%, 98%);
+    --secondary: hsl(16, 25%, 25%);
+    --secondary-foreground: hsl(0, 0%, 98%);
+    --muted: hsl(120, 10%, 25%);
+    --muted-foreground: hsl(120, 10%, 65%);
+    --accent: hsl(33, 100%, 60%);
+    --accent-foreground: hsl(0, 0%, 10%);
+    --destructive: hsl(0, 63%, 60%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(120, 15%, 20%);
+    --input: hsl(120, 15%, 16%);
+    --ring: hsl(122, 39%, 35%);
+    --chart-1: hsl(122, 39%, 35%);
+    --chart-2: hsl(120, 60%, 45%);
+    --chart-3: hsl(33, 100%, 60%);
+    --chart-4: hsl(0, 63%, 60%);
+    --chart-5: hsl(210, 100%, 60%);
+    --sidebar: hsl(120, 15%, 12%);
+    --sidebar-foreground: hsl(120, 10%, 92%);
+    --sidebar-primary: hsl(122, 39%, 35%);
+    --sidebar-primary-foreground: hsl(0, 0%, 98%);
+    --sidebar-accent: hsl(120, 10%, 25%);
+    --sidebar-accent-foreground: hsl(122, 39%, 35%);
+    --sidebar-border: hsl(120, 15%, 20%);
+    --sidebar-ring: hsl(122, 39%, 35%);
+    --success: hsl(120, 60%, 45%);
+    --warning: hsl(45, 100%, 60%);
+    --info: hsl(210, 100%, 60%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.severity-healthy { 
+  background: linear-gradient(90deg, hsl(var(--success)) 0%, hsl(120, 50%, 45%) 100%); 
+}
+
+.severity-mild { 
+  background: linear-gradient(90deg, hsl(var(--warning)) 0%, hsl(50, 90%, 55%) 100%); 
+}
+
+.severity-moderate { 
+  background: linear-gradient(90deg, hsl(var(--accent)) 0%, hsl(25, 90%, 55%) 100%); 
+}
+
+.severity-severe { 
+  background: linear-gradient(90deg, hsl(var(--destructive)) 0%, hsl(0, 80%, 60%) 100%); 
+}

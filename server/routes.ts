@@ -38,17 +38,11 @@ const upload = multer({
 // Analyze image using external webhook
 async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> {
   try {
-    // Create FormData to send the image to the webhook
-    const form = new FormData();
-    
-    // Read the file and append to form data
-    const fileBuffer = fs.readFileSync(file.path);
-    form.append('image', fileBuffer, {
-      filename: file.originalname,
-      contentType: file.mimetype
-    });
-
     console.log('Sending image to webhook...');
+    
+    // Read the file as binary data
+    const fileBuffer = fs.readFileSync(file.path);
+    console.log('File buffer size:', fileBuffer.length, 'bytes');
     
     // Send POST request to the webhook with timeout
     const controller = new AbortController();
@@ -56,8 +50,11 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
     
     const response = await fetch('https://n8n-803689514411.europe-west2.run.app/webhook-test/c96ccd04-d1e1-48b3-9c5d-552deff91c6e', {
       method: 'POST',
-      body: form as any,
-      headers: form.getHeaders(),
+      body: fileBuffer,
+      headers: {
+        'Content-Type': file.mimetype,
+        'Content-Length': fileBuffer.length.toString(),
+      },
       signal: controller.signal
     });
 

@@ -41,6 +41,7 @@ export class MemStorage implements IStorage {
     const analysis: Analysis = { 
       ...insertAnalysis, 
       id,
+      userId: insertAnalysis.userId ?? null,
       createdAt: new Date()
     };
     this.analyses.set(id, analysis);

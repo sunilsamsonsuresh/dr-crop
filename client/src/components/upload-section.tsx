@@ -6,7 +6,7 @@ import { analyzeImage } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { Images, Camera, X, Search } from "lucide-react";
 import { AnalysisResult } from "@shared/schema";
-import CameraModal from "./camera-modal";
+import CameraModal from "@/components/camera-modal";
 
 interface UploadSectionProps {
   onImageSelect: (file: File) => void;

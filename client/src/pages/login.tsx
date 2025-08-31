@@ -7,29 +7,74 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 
 interface LoginProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess?: () => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [registerData, setRegisterData] = useState({ username: "", password: "", confirmPassword: "" });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+
+  const handleLoginSuccess = async () => {
+    toast({
+      title: "Login Successful",
+      description: "Welcome to Dr Crop!",
+    });
+    
+    // Invalidate and refetch the auth query to update authentication state
+    await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    
+    // Wait for the query to refetch and authentication state to update
+    await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+    
+    // Small delay to ensure state is updated
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Redirect to home page
+    setLocation("/");
+    
+    // Call the callback if provided
+    if (onLoginSuccess) {
+      onLoginSuccess();
+    }
+  };
+
+  const handleRegisterSuccess = async () => {
+    toast({
+      title: "Registration Successful",
+      description: "Your account has been created! You are now logged in.",
+    });
+    
+    // Invalidate and refetch the auth query to update authentication state
+    await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    
+    // Wait for the query to refetch and authentication state to update
+    await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+    
+    // Small delay to ensure state is updated
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Redirect to home page
+    setLocation("/");
+    
+    // Call the callback if provided
+    if (onLoginSuccess) {
+      onLoginSuccess();
+    }
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
       const response = await apiRequest('POST', '/api/auth/login', credentials);
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Login Successful",
-        description: "Welcome to Dr Crop!",
-      });
-      onLoginSuccess();
-    },
+    onSuccess: handleLoginSuccess,
     onError: (error) => {
       toast({
         title: "Login Failed",
@@ -44,13 +89,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       const response = await apiRequest('POST', '/api/auth/register', credentials);
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created! You are now logged in.",
-      });
-      onLoginSuccess();
-    },
+    onSuccess: handleRegisterSuccess,
     onError: (error) => {
       toast({
         title: "Registration Failed",

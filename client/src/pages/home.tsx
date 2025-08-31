@@ -198,7 +198,6 @@ export default function Home() {
           />
         )}
       </main>
-
       {/* Footer */}
       <footer className="mt-16 bg-card border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -212,6 +211,9 @@ export default function Home() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Advanced plant disease diagnostics powered by AI technology for modern agriculture professionals.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                A product of SamStudios
               </p>
             </div>
             <div>

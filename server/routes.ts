@@ -365,9 +365,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Middleware to check if user is authenticated
   const requireAuth = (req: Request, res: any, next: any) => {
+    // Debug: Log session info
+    console.log('requireAuth - Session ID:', req.sessionID);
+    console.log('requireAuth - Session userId:', req.session.userId);
+    console.log('requireAuth - Session exists:', !!req.session);
+    
     if (!req.session.userId) {
+      console.log('requireAuth - Authentication failed: no userId in session');
       return res.status(401).json({ error: 'Authentication required' });
     }
+    
+    console.log('requireAuth - Authentication successful');
     next();
   };
 

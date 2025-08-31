@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import Login from "@/pages/login";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/landing";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,13 +27,22 @@ function Router() {
   }
 
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={() => window.location.reload()} />;
+    return (
+      <Switch>
+        <Route path="/login" component={() => <Login />} />
+        <Route path="/register" component={() => <Login />} />
+        <Route path="/" component={Landing} />
+        <Route component={Landing} />
+      </Switch>
+    );
   }
 
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/settings" component={Settings} />
+      <Route path="/login" component={() => <Login />} />
+      <Route path="/register" component={() => <Login />} />
       <Route component={NotFound} />
     </Switch>
   );

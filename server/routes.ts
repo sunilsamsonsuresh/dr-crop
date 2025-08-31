@@ -323,6 +323,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete user account
+  app.delete("/api/user", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteUser(req.session.userId!);
+      
+      // Destroy session after deleting user
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Error destroying session:', err);
+        }
+      });
+      
+      res.json({ message: "User account deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ error: "Failed to delete user account" });
+    }
+  });
+
+  // Delete specific analysis
+  app.delete("/api/analyses/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteAnalysis(req.params.id, req.session.userId!);
+      res.json({ message: "Analysis deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting analysis:', error);
+      res.status(500).json({ error: "Failed to delete analysis" });
+    }
+  });
+
+  // Delete all user analyses
+  app.delete("/api/analyses", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteAllUserAnalyses(req.session.userId!);
+      res.json({ message: "All analyses deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting all analyses:', error);
+      res.status(500).json({ error: "Failed to delete all analyses" });
+    }
+  });
+
   // Get specific analysis (user can only access their own)
   app.get("/api/analyses/:id", requireAuth, async (req, res) => {
     try {

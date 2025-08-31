@@ -11,6 +11,9 @@ export interface IStorage {
   getAnalysesByUserId(userId: string): Promise<Analysis[]>;
   getAnalysis(id: string): Promise<Analysis | undefined>;
   getUserStats(userId: string): Promise<UserStats>;
+  deleteUser(userId: string): Promise<void>;
+  deleteAnalysis(analysisId: string, userId: string): Promise<void>;
+  deleteAllUserAnalyses(userId: string): Promise<void>;
 }
 
 export class MongoStorage implements IStorage {
@@ -78,19 +81,31 @@ export class MongoStorage implements IStorage {
     // Get today's date for filtering today's scans
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    console.log('Getting stats for user:', userId);
+    console.log('Today date range:', today, 'to', tomorrow);
 
     // Get all user's analyses
     const userAnalyses = await db.collection<Analysis>('analyses')
       .find({ userId })
       .toArray();
 
-    // Get today's scans
-    const todayScans = userAnalyses.filter(
-      analysis => analysis.createdAt >= today
-    );
+    console.log('Total user analyses found:', userAnalyses.length);
+
+    // Get today's scans using MongoDB date query
+    const todayScansResult = await db.collection<Analysis>('analyses')
+      .find({ 
+        userId,
+        createdAt: { $gte: today, $lt: tomorrow }
+      })
+      .toArray();
+
+    console.log('Today scans found:', todayScansResult.length);
 
     // Calculate stats
-    const scansToday = todayScans.length;
+    const scansToday = todayScansResult.length;
     
     const healthyPlants = userAnalyses.filter(
       analysis => analysis.disease.toLowerCase().includes('healthy') || 
@@ -105,12 +120,42 @@ export class MongoStorage implements IStorage {
       analysis => analysis.severityPercent > 70
     ).length;
 
-    return {
+    const stats = {
       scansToday,
       healthyPlants,
       needTreatment,
       criticalCases
     };
+
+    console.log('Calculated stats:', stats);
+    return stats;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    const db = getDatabase();
+    
+    // Delete all user's analyses first
+    await db.collection<Analysis>('analyses').deleteMany({ userId });
+    
+    // Delete the user
+    await db.collection<User>('users').deleteOne({ id: userId });
+  }
+
+  async deleteAnalysis(analysisId: string, userId: string): Promise<void> {
+    const db = getDatabase();
+    
+    // Delete analysis only if it belongs to the user
+    await db.collection<Analysis>('analyses').deleteOne({ 
+      id: analysisId, 
+      userId 
+    });
+  }
+
+  async deleteAllUserAnalyses(userId: string): Promise<void> {
+    const db = getDatabase();
+    
+    // Delete all analyses for the user
+    await db.collection<Analysis>('analyses').deleteMany({ userId });
   }
 }
 

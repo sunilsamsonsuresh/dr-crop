@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { mongoStorage } from "./mongoStorage";
 import { analysisResultSchema, insertUserSchema, loginSchema } from "@shared/schema";
 import multer, { type FileFilterCallback } from "multer";
 import path from "path";
@@ -39,6 +39,12 @@ const upload = multer({
 async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> {
   try {
     console.log('Sending image to webhook...');
+    console.log('File details:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path
+    });
     
     // Read the file as binary data
     const fileBuffer = fs.readFileSync(file.path);
@@ -48,7 +54,10 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
-    const response = await fetch('https://n8n-803689514411.europe-west2.run.app/webhook-test/c96ccd04-d1e1-48b3-9c5d-552deff91c6e', {
+    const webhookUrl = 'https://n8n-803689514411.europe-west2.run.app/webhook-test/c96ccd04-d1e1-48b3-9c5d-552deff91c6e';
+    console.log('Sending request to webhook URL:', webhookUrl);
+    
+    const response = await fetch(webhookUrl, {
       method: 'POST',
       body: fileBuffer,
       headers: {
@@ -61,24 +70,39 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
     clearTimeout(timeoutId);
 
     console.log('Webhook response status:', response.status);
+    console.log('Webhook response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
-      throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => 'Unable to read error response');
+      console.error('Webhook error response:', errorText);
+      throw new Error(`Webhook request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const responseText = await response.text();
+    console.log('Raw webhook response length:', responseText.length);
     console.log('Raw webhook response:', responseText);
     
     if (!responseText.trim()) {
       throw new Error('Empty response from webhook');
     }
 
-    const result = JSON.parse(responseText);
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log('Successfully parsed webhook result');
+    } catch (parseError) {
+      console.error('Failed to parse webhook response as JSON:', parseError);
+      console.error('Response that failed to parse:', responseText);
+      throw new Error('Invalid JSON response from webhook');
+    }
+    
+    console.log('Parsed webhook result type:', typeof result);
     console.log('Parsed webhook result:', result);
     
-    // Parse the webhook response format: object with output field
-    if (result && result.output) {
-      const output = result.output;
+    // Parse the webhook response format: array with output field
+    if (Array.isArray(result) && result.length > 0 && result[0].output) {
+      const output = result[0].output;
+      console.log('Found output field:', output);
       
       // Clean and format treatment recommendations
       const cleanTreatmentText = (text: string) => {
@@ -86,8 +110,6 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
           .replace(/\s*\(e\.g\.,?\s*/g, ' (for example: ') // Fix e.g. formatting
           .replace(/\s*\(e\.g\.\s*/g, ' (for example ') // Handle cases without comma
           .replace(/\)\s*with\s+/g, ') - ') // Clean up parentheses followed by "with"
-          .replace(/\.\s*$/, '') // Remove trailing periods from list items
-          .replace(/,\s*$/, '') // Remove trailing commas
           .trim();
       };
 
@@ -100,23 +122,214 @@ async function analyzeImageWithWebhook(file: Express.Multer.File): Promise<any> 
         ? output.ChemicalTreatment.map(cleanTreatmentText).join('\n• ')
         : cleanTreatmentText(output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.");
 
-      // Map severity to proper format
-      const severityPercent = parseInt(output.Severity) || 50;
+      // Map severity to proper format - handle both numeric and text severity
+      let severityPercent = 50;
       let severityLevel = "Moderate";
-      if (severityPercent <= 25) severityLevel = "Mild";
-      else if (severityPercent <= 50) severityLevel = "Moderate";
-      else severityLevel = "Severe";
+      
+      if (typeof output.Severity === 'number') {
+        severityPercent = output.Severity;
+      } else if (typeof output.Severity === 'string') {
+        // Parse text severity like "Mild to moderate"
+        if (output.Severity.toLowerCase().includes('mild')) {
+          severityPercent = 25;
+          severityLevel = "Mild";
+        } else if (output.Severity.toLowerCase().includes('severe')) {
+          severityPercent = 75;
+          severityLevel = "Severe";
+        } else {
+          severityPercent = 50;
+          severityLevel = "Moderate";
+        }
+      }
 
-      return {
+      const finalResult = {
         disease: output.Diagnosis || "Unknown Disease",
         severity: severityLevel,
         severity_percent: severityPercent,
         organic_diagnosis: organicTreatment,
         chemical_diagnosis: chemicalTreatment
       };
+      
+      console.log('Final processed result:', finalResult);
+      return finalResult;
+    } else if (Array.isArray(result) && result.length > 0 && result[0].response && result[0].response.output) {
+      // Handle the actual response format: result[0].response.output
+      const output = result[0].response.output;
+      console.log('Found response.output field:', output);
+      
+      // Clean and format treatment recommendations
+      const cleanTreatmentText = (text: string) => {
+        return text
+          .replace(/\s*\(e\.g\.,?\s*/g, ' (for example: ') // Fix e.g. formatting
+          .replace(/\s*\(e\.g\.\s*/g, ' (for example ') // Handle cases without comma
+          .replace(/\)\s*with\s+/g, ') - ') // Clean up parentheses followed by "with"
+          .trim();
+      };
+
+      // Convert organic and chemical treatments from arrays to formatted strings
+      const organicTreatment = Array.isArray(output.OrganicTreatment) 
+        ? output.OrganicTreatment.map(cleanTreatmentText).join('\n• ') 
+        : cleanTreatmentText(output.OrganicTreatment || "Apply organic treatments as recommended by agricultural specialist.");
+        
+      const chemicalTreatment = Array.isArray(output.ChemicalTreatment)
+        ? output.ChemicalTreatment.map(cleanTreatmentText).join('\n• ')
+        : cleanTreatmentText(output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.");
+
+      // Map severity to proper format - handle both numeric and text severity
+      let severityPercent = 50;
+      let severityLevel = "Moderate";
+      
+      if (typeof output.Severity === 'number') {
+        severityPercent = output.Severity;
+      } else if (typeof output.Severity === 'string') {
+        // Parse text severity like "Mild to moderate"
+        if (output.Severity.toLowerCase().includes('mild')) {
+          severityPercent = 25;
+          severityLevel = "Mild";
+        } else if (output.Severity.toLowerCase().includes('severe')) {
+          severityPercent = 75;
+          severityLevel = "Severe";
+        } else {
+          severityPercent = 50;
+          severityLevel = "Moderate";
+        }
+      }
+
+      const finalResult = {
+        disease: output.Diagnosis || "Unknown Disease",
+        severity: severityLevel,
+        severity_percent: severityPercent,
+        organic_diagnosis: organicTreatment,
+        chemical_diagnosis: chemicalTreatment
+      };
+      
+      console.log('Final processed result from response.output:', finalResult);
+      return finalResult;
+    } else if (result && typeof result === 'object' && !Array.isArray(result) && result.output) {
+      // Handle direct object format: result.output (your actual format)
+      const output = result.output;
+      console.log('Found direct output field:', output);
+      
+      // Clean and format treatment recommendations
+      const cleanTreatmentText = (text: string) => {
+        return text
+          .replace(/\s*\(e\.g\.,?\s*/g, ' (for example: ')
+          .replace(/\s*\(e\.g\.\s*/g, ' (for example ')
+          .replace(/\)\s*with\s+/g, ') - ')
+          .trim();
+      };
+
+      // Convert organic and chemical treatments from arrays to formatted strings
+      const organicTreatment = Array.isArray(output.OrganicTreatment) 
+        ? output.OrganicTreatment.map(cleanTreatmentText).join('\n• ') 
+        : cleanTreatmentText(output.OrganicTreatment || "Apply organic treatments as recommended by agricultural specialist.");
+        
+      const chemicalTreatment = Array.isArray(output.ChemicalTreatment)
+        ? output.ChemicalTreatment.map(cleanTreatmentText).join('\n• ')
+        : cleanTreatmentText(output.ChemicalTreatment || "Consult with agricultural specialist for chemical treatment options.");
+
+      // Map severity to proper format - handle both numeric and text severity
+      let severityPercent = 50;
+      let severityLevel = "Moderate";
+      
+      if (typeof output.Severity === 'number') {
+        severityPercent = output.Severity;
+      } else if (typeof output.Severity === 'string') {
+        // Parse text severity like "Mild to moderate"
+        if (output.Severity.toLowerCase().includes('mild')) {
+          severityPercent = 25;
+          severityLevel = "Mild";
+        } else if (output.Severity.toLowerCase().includes('severe')) {
+          severityPercent = 75;
+          severityLevel = "Severe";
+        } else {
+          severityPercent = 50;
+          severityLevel = "Moderate";
+        }
+      }
+
+      const finalResult = {
+        disease: output.Diagnosis || "Unknown Disease",
+        severity: severityLevel,
+        severity_percent: severityPercent,
+        organic_diagnosis: organicTreatment,
+        chemical_diagnosis: chemicalTreatment
+      };
+      
+      console.log('Final processed result from direct output:', finalResult);
+      return finalResult;
     } else {
       console.error('Invalid webhook response structure:', result);
-      throw new Error('Invalid webhook response format');
+      console.error('Expected: Array with output field, got:', {
+        isArray: Array.isArray(result),
+        length: Array.isArray(result) ? result.length : 'N/A',
+        hasOutput: Array.isArray(result) && result.length > 0 ? !!result[0].output : false
+      });
+      
+      // Try to extract information from different response formats
+      console.log('Attempting to parse alternative response format...');
+      
+      // Check if response is directly an object with the fields we need
+      if (result && typeof result === 'object' && !Array.isArray(result)) {
+        console.log('Found direct object response, checking for fields...');
+        
+        // Look for common field names
+        const diagnosis = result.Diagnosis || result.diagnosis || result.Disease || result.disease;
+        const organicTreatment = result.OrganicTreatment || result.organicTreatment || result.Organic || result.organic;
+        const chemicalTreatment = result.ChemicalTreatment || result.chemicalTreatment || result.Chemical || result.chemical;
+        const severity = result.Severity || result.severity;
+        
+        if (diagnosis || organicTreatment || chemicalTreatment) {
+          console.log('Found usable fields in direct response:', { diagnosis, organicTreatment, chemicalTreatment, severity });
+          
+          const cleanTreatmentText = (text: string) => {
+            return text
+              .replace(/\s*\(e\.g\.,?\s*/g, ' (for example: ')
+              .replace(/\s*\(e\.g\.\s*/g, ' (for example ')
+              .replace(/\)\s*with\s+/g, ') - ')
+              .trim();
+          };
+
+          const organicFormatted = Array.isArray(organicTreatment) 
+            ? organicTreatment.map(cleanTreatmentText).join('\n• ') 
+            : cleanTreatmentText(organicTreatment || "Apply organic treatments as recommended by agricultural specialist.");
+            
+          const chemicalFormatted = Array.isArray(chemicalTreatment)
+            ? chemicalTreatment.map(cleanTreatmentText).join('\n• ')
+            : cleanTreatmentText(chemicalTreatment || "Consult with agricultural specialist for chemical treatment options.");
+
+          let severityPercent = 50;
+          let severityLevel = "Moderate";
+          
+          if (typeof severity === 'number') {
+            severityPercent = severity;
+          } else if (typeof severity === 'string') {
+            if (severity.toLowerCase().includes('mild')) {
+              severityPercent = 25;
+              severityLevel = "Mild";
+            } else if (severity.toLowerCase().includes('severe')) {
+              severityPercent = 75;
+              severityLevel = "Severe";
+            } else {
+              severityPercent = 50;
+              severityLevel = "Moderate";
+            }
+          }
+
+          const fallbackResult = {
+            disease: diagnosis || "Unknown Disease",
+            severity: severityLevel,
+            severity_percent: severityPercent,
+            organic_diagnosis: organicFormatted,
+            chemical_diagnosis: chemicalFormatted
+          };
+          
+          console.log('Fallback result created:', fallbackResult);
+          return fallbackResult;
+        }
+      }
+      
+      throw new Error('Invalid webhook response format - missing output field and no usable fallback fields found');
     }
 
   } catch (error) {
@@ -164,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertUserSchema.parse(req.body);
       
       // Check if user already exists
-      const existingUser = await storage.getUserByUsername(validatedData.username);
+      const existingUser = await mongoStorage.getUserByUsername(validatedData.username);
       if (existingUser) {
         return res.status(400).json({ error: 'Username already exists' });
       }
@@ -173,7 +386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       
       // Create user
-      const user = await storage.createUser({
+      const user = await mongoStorage.createUser({
         username: validatedData.username,
         password: hashedPassword
       });
@@ -202,7 +415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = loginSchema.parse(req.body);
       
       // Find user
-      const user = await storage.getUserByUsername(validatedData.username);
+      const user = await mongoStorage.getUserByUsername(validatedData.username);
       if (!user) {
         return res.status(401).json({ error: 'Invalid username or password' });
       }
@@ -244,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user endpoint
   app.get('/api/auth/user', requireAuth, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId!);
+      const user = await mongoStorage.getUser(req.session.userId!);
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -259,6 +472,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to get user info' });
     }
   });
+  // Test webhook endpoint
+  app.post("/api/test-webhook", async (req, res) => {
+    try {
+      console.log('Testing webhook directly...');
+      
+      // Send a test request to the webhook
+      const testData = { test: "data" };
+      const response = await fetch('https://n8n-803689514411.europe-west2.run.app/webhook-test/c96ccd04-d1e1-48b3-9c5d-552deff91c6e', {
+        method: 'POST',
+        body: JSON.stringify(testData),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Test webhook response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unable to read error response');
+        return res.status(response.status).json({ 
+          error: `Webhook test failed: ${response.status} ${response.statusText}`,
+          details: errorText
+        });
+      }
+
+      const responseText = await response.text();
+      console.log('Test webhook raw response:', responseText);
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        return res.status(500).json({ 
+          error: 'Failed to parse webhook response as JSON',
+          rawResponse: responseText
+        });
+      }
+
+      res.json({
+        success: true,
+        webhookResponse: result,
+        responseStructure: {
+          type: typeof result,
+          isArray: Array.isArray(result),
+          keys: typeof result === 'object' ? Object.keys(result) : 'N/A',
+          arrayLength: Array.isArray(result) ? result.length : 'N/A'
+        }
+      });
+
+    } catch (error) {
+      console.error('Webhook test error:', error);
+      res.status(500).json({ 
+        error: "Failed to test webhook",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Image analysis endpoint (requires authentication)
   app.post("/api/analyze", requireAuth, upload.single('image'), async (req: Request, res) => {
     try {
@@ -285,7 +556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedResult = analysisResultSchema.parse(analysisResult);
 
       // Store analysis in database with user ID
-      const analysis = await storage.createAnalysis({
+      const analysis = await mongoStorage.createAnalysis({
         userId: req.session.userId!,
         imagePath: req.file.path,
         disease: validatedResult.disease,
@@ -312,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's analysis history
   app.get("/api/analyses", requireAuth, async (req, res) => {
     try {
-      const analyses = await storage.getAnalysesByUserId(req.session.userId!);
+      const analyses = await mongoStorage.getAnalysesByUserId(req.session.userId!);
       res.json(analyses.slice(0, 10)); // Return last 10 analyses
     } catch (error) {
       console.error('Error fetching analyses:', error);
@@ -323,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user statistics
   app.get("/api/user/stats", requireAuth, async (req, res) => {
     try {
-      const stats = await storage.getUserStats(req.session.userId!);
+      const stats = await mongoStorage.getUserStats(req.session.userId!);
       res.json(stats);
     } catch (error) {
       console.error('Error fetching user stats:', error);
@@ -334,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete user account
   app.delete("/api/user", requireAuth, async (req, res) => {
     try {
-      await storage.deleteUser(req.session.userId!);
+      await mongoStorage.deleteUser(req.session.userId!);
       
       // Destroy session after deleting user
       req.session.destroy((err) => {
@@ -353,7 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete specific analysis
   app.delete("/api/analyses/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteAnalysis(req.params.id, req.session.userId!);
+      await mongoStorage.deleteAnalysis(req.params.id, req.session.userId!);
       res.json({ message: "Analysis deleted successfully" });
     } catch (error) {
       console.error('Error deleting analysis:', error);
@@ -364,7 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete all user analyses
   app.delete("/api/analyses", requireAuth, async (req, res) => {
     try {
-      await storage.deleteAllUserAnalyses(req.session.userId!);
+      await mongoStorage.deleteAllUserAnalyses(req.session.userId!);
       res.json({ message: "All analyses deleted successfully" });
     } catch (error) {
       console.error('Error deleting all analyses:', error);
@@ -375,7 +646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get specific analysis (user can only access their own)
   app.get("/api/analyses/:id", requireAuth, async (req, res) => {
     try {
-      const analysis = await storage.getAnalysis(req.params.id);
+      const analysis = await mongoStorage.getAnalysis(req.params.id);
       if (!analysis) {
         return res.status(404).json({ error: "Analysis not found" });
       }

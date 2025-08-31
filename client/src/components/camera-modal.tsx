@@ -137,17 +137,7 @@ export default function CameraModal({ open, onClose, onCapture }: CameraModalPro
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md w-full">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            Capture Plant Photo
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClose}
-              data-testid="button-close-camera"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogTitle>
+          <DialogTitle>Capture Plant Photo</DialogTitle>
         </DialogHeader>
         
         <div className="p-4">

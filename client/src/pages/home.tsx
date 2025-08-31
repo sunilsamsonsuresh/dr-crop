@@ -19,6 +19,7 @@ export default function Home() {
   const [currentState, setCurrentState] = useState<AppState>('upload');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -66,6 +67,9 @@ export default function Home() {
 
   const handleImageSelect = (file: File) => {
     setSelectedImage(file);
+    // Create and store the URL
+    const url = URL.createObjectURL(file);
+    setImageUrl(url);
   };
 
   const handleAnalysisStart = () => {
@@ -81,6 +85,11 @@ export default function Home() {
     setCurrentState('upload');
     setAnalysisResult(null);
     setSelectedImage(null);
+    // Clean up the URL
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+      setImageUrl(null);
+    }
   };
 
   return (
@@ -179,7 +188,7 @@ export default function Home() {
         )}
 
         {currentState === 'processing' && (
-          <ProcessingState />
+          <ProcessingState selectedImage={imageUrl} />
         )}
 
         {currentState === 'results' && analysisResult && (

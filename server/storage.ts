@@ -1,7 +1,7 @@
 import { type User, type InsertUser, type Analysis, type InsertAnalysis, type UserStats } from "@shared/schema";
-import { users, analyses } from "@shared/schema";
-import { db } from "./db";
-import { eq, and, gte, count, sql } from "drizzle-orm";
+import { getDatabase } from "./db";
+import { ObjectId } from "mongodb";
+import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -13,56 +13,76 @@ export interface IStorage {
   getUserStats(userId: string): Promise<UserStats>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class MongoStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const db = getDatabase();
+    const user = await db.collection<User>('users').findOne({ id });
     return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const db = getDatabase();
+    const user = await db.collection<User>('users').findOne({ username });
     return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
+    const db = getDatabase();
+    const user: User = {
+      id: randomUUID(),
+      username: insertUser.username,
+      password: insertUser.password,
+      createdAt: new Date(),
+    };
+    
+    await db.collection<User>('users').insertOne(user);
     return user;
   }
 
   async createAnalysis(insertAnalysis: InsertAnalysis): Promise<Analysis> {
-    const [analysis] = await db
-      .insert(analyses)
-      .values(insertAnalysis)
-      .returning();
+    const db = getDatabase();
+    const analysis: Analysis = {
+      id: randomUUID(),
+      userId: insertAnalysis.userId,
+      imagePath: insertAnalysis.imagePath,
+      disease: insertAnalysis.disease,
+      severity: insertAnalysis.severity,
+      severityPercent: insertAnalysis.severityPercent,
+      organicDiagnosis: insertAnalysis.organicDiagnosis,
+      chemicalDiagnosis: insertAnalysis.chemicalDiagnosis,
+      createdAt: new Date(),
+    };
+    
+    await db.collection<Analysis>('analyses').insertOne(analysis);
     return analysis;
   }
 
   async getAnalysesByUserId(userId: string): Promise<Analysis[]> {
-    return await db
-      .select()
-      .from(analyses)
-      .where(eq(analyses.userId, userId))
-      .orderBy(sql`${analyses.createdAt} DESC`);
+    const db = getDatabase();
+    const analyses = await db.collection<Analysis>('analyses')
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return analyses;
   }
 
   async getAnalysis(id: string): Promise<Analysis | undefined> {
-    const [analysis] = await db.select().from(analyses).where(eq(analyses.id, id));
+    const db = getDatabase();
+    const analysis = await db.collection<Analysis>('analyses').findOne({ id });
     return analysis || undefined;
   }
 
   async getUserStats(userId: string): Promise<UserStats> {
+    const db = getDatabase();
+    
     // Get today's date for filtering today's scans
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Get all user's analyses
-    const userAnalyses = await db
-      .select()
-      .from(analyses)
-      .where(eq(analyses.userId, userId));
+    const userAnalyses = await db.collection<Analysis>('analyses')
+      .find({ userId })
+      .toArray();
 
     // Get today's scans
     const todayScans = userAnalyses.filter(
@@ -94,4 +114,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MongoStorage();

@@ -1,43 +1,33 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, jsonb, timestamp, integer } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { ObjectId } from "mongodb";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-});
+// MongoDB User Schema
+export interface User {
+  _id?: ObjectId;
+  id: string;
+  username: string;
+  password: string;
+  createdAt: Date;
+}
 
-export const analyses = pgTable("analyses", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  imagePath: text("image_path").notNull(),
-  disease: text("disease").notNull(),
-  severity: text("severity").notNull(),
-  severityPercent: integer("severity_percent").notNull(),
-  organicDiagnosis: text("organic_diagnosis").notNull(),
-  chemicalDiagnosis: text("chemical_diagnosis").notNull(),
-  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
-});
+// MongoDB Analysis Schema
+export interface Analysis {
+  _id?: ObjectId;
+  id: string;
+  userId: string;
+  imagePath: string;
+  disease: string;
+  severity: string;
+  severityPercent: number;
+  organicDiagnosis: string;
+  chemicalDiagnosis: string;
+  createdAt: Date;
+}
 
-// Define relations
-export const usersRelations = relations(users, ({ many }) => ({
-  analyses: many(analyses),
-}));
-
-export const analysesRelations = relations(analyses, ({ one }) => ({
-  user: one(users, {
-    fields: [analyses.userId],
-    references: [users.id],
-  }),
-}));
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// Zod schemas for validation
+export const insertUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export const loginSchema = z.object({
@@ -45,9 +35,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-export const insertAnalysisSchema = createInsertSchema(analyses).omit({
-  id: true,
-  createdAt: true,
+export const insertAnalysisSchema = z.object({
+  userId: z.string(),
+  imagePath: z.string(),
+  disease: z.string(),
+  severity: z.string(),
+  severityPercent: z.number(),
+  organicDiagnosis: z.string(),
+  chemicalDiagnosis: z.string(),
 });
 
 export const analysisResultSchema = z.object({
@@ -58,11 +53,10 @@ export const analysisResultSchema = z.object({
   chemical_diagnosis: z.string(),
 });
 
+// TypeScript types
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type InsertAnalysis = z.infer<typeof insertAnalysisSchema>;
-export type Analysis = typeof analyses.$inferSelect;
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 
 export type UserStats = {

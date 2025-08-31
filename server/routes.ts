@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import FormData from 'form-data';
 import bcrypt from 'bcryptjs';
 import session from 'express-session';
+import { connectToDatabase } from "./db";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,6 +127,9 @@ declare module 'express-session' {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize MongoDB connection
+  await connectToDatabase();
+
   // Configure session middleware
   app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',

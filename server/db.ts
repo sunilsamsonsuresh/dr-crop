@@ -1,15 +1,24 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import { MongoClient, Db } from 'mongodb';
 
-neonConfig.webSocketConstructor = ws;
+const MONGODB_URI = 'mongodb+srv://samstudio:AEXOoX6VvTMBb3ko@samstudio-prod.kky0eyj.mongodb.net/?retryWrites=true&w=majority&appName=samstudio-prod';
+const DATABASE_NAME = 'dr-crop';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+let client: MongoClient;
+let db: Db;
+
+export async function connectToDatabase() {
+  if (!client) {
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    db = client.db(DATABASE_NAME);
+    console.log('Connected to MongoDB');
+  }
+  return db;
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+export function getDatabase(): Db {
+  if (!db) {
+    throw new Error('Database not initialized. Call connectToDatabase() first.');
+  }
+  return db;
+}
